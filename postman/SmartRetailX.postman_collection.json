@@ -1,0 +1,1308 @@
+{
+  "info": {
+    "_postman_id": "b5f811df-8428-45b8-9a1f-c027aa070e7f",
+    "name": "SmartRetailX Platform",
+    "description": "API test collection for the SmartRetailX microservices platform (COMP60010 Task 2/8 evidence).\n\nImport the companion 'SmartRetailX.postman_environment.json' environment alongside this collection and select it before running anything.\n\nRecommended run order: Auth & Users (the 3 login requests first) -> Product Catalogue -> Order Processing -> Inventory Management -> Notification Service. Each folder includes at least one deliberate negative test (missing/wrong role token) to demonstrate RBAC enforcement, alongside the happy-path requests.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "0. Health Checks",
+      "item": [
+        {
+          "name": "User Service Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{user_service_url}}/v1/health"
+          },
+          "response": []
+        },
+        {
+          "name": "Product Service Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{product_service_url}}/v1/health"
+          },
+          "response": []
+        },
+        {
+          "name": "Order Service Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{order_service_url}}/v1/health"
+          },
+          "response": []
+        },
+        {
+          "name": "Inventory Service Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{inventory_service_url}}/v1/health"
+          },
+          "response": []
+        },
+        {
+          "name": "Notification Service Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{notification_service_url}}/v1/health"
+          },
+          "response": []
+        }
+      ],
+      "description": "Direct per-service health checks (not routed through the gateway)."
+    },
+    {
+      "name": "1. User Management Service (Auth, Users, RBAC)",
+      "item": [
+        {
+          "name": "Register New Customer (public)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/v1/auth/register",
+            "description": "Public self-registration endpoint. Always creates a 'customer' role account regardless of any role field sent.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"postman.customer@smartretailx.com\",\n  \"password\": \"Password123!\",\n  \"full_name\": \"Postman Customer\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201 or 409 (already registered)', function () {",
+                  "    pm.expect([201, 409]).to.include(pm.response.code);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login as Admin",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/v1/auth/login",
+            "description": "Uses the seeded admin account. Run scripts/seed_data.py first if this fails with 401.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@smartretailx.com\",\n  \"password\": \"Admin123!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Login succeeded', function () { pm.response.to.have.status(200); });",
+                  "const body = pm.response.json();",
+                  "pm.environment.set('admin_token', body.access_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login as Warehouse Staff",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/v1/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"staff@smartretailx.com\",\n  \"password\": \"Staff123!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Login succeeded', function () { pm.response.to.have.status(200); });",
+                  "const body = pm.response.json();",
+                  "pm.environment.set('staff_token', body.access_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login as Customer",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/v1/auth/login",
+            "description": "Run this (and the Admin/Staff logins above) before anything else in the collection - every other request depends on one of these three tokens.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"customer@smartretailx.com\",\n  \"password\": \"Customer123!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Login succeeded', function () { pm.response.to.have.status(200); });",
+                  "const body = pm.response.json();",
+                  "pm.environment.set('customer_token', body.access_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login with Wrong Password (negative test)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/v1/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"customer@smartretailx.com\",\n  \"password\": \"wrong-password\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Rejected with 401', function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get My Profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/v1/users/me",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customer_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Role is customer', function () { pm.expect(pm.response.json().role).to.eql('customer'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get My Profile Without Token (negative test)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/v1/users/me"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Rejected with 401', function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List All Users (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/v1/users?page=1&page_size=20",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Response has items array', function () { pm.expect(pm.response.json().items).to.be.an('array'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List All Users as Customer (negative test - RBAC)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/v1/users?page=1&page_size=20",
+            "description": "Proves customers cannot access the admin-only user listing endpoint.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customer_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Forbidden with 403', function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Warehouse Staff User (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/v1/users",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"postman.staff@smartretailx.com\",\n  \"password\": \"Password123!\",\n  \"full_name\": \"Postman Staff\",\n  \"role\": \"warehouse_staff\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201 or 409 (already exists)', function () { pm.expect([201, 409]).to.include(pm.response.code); });",
+                  "if (pm.response.code === 201) { pm.environment.set('created_user_id', pm.response.json().id); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get User By Id (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/v1/users/{{created_user_id}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update User Role (Admin)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/v1/users/{{created_user_id}}/role",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"customer\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Role updated', function () { pm.expect(pm.response.json().role).to.eql('customer'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete User (Admin)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/v1/users/{{created_user_id}}",
+            "description": "Cleans up the user created by 'Create Warehouse Staff User (Admin)' above.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 204', function () { pm.response.to.have.status(204); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2. Product Catalogue Service",
+      "item": [
+        {
+          "name": "Search Products",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/v1/products?q=coffee&page=1&page_size=10",
+            "description": "Free-text search across name/description, plus optional ?category= filter and pagination.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customer_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Products Without Token (negative test)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/v1/products"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Rejected with 401', function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Product By Id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/v1/products/{{seed_product_id}}",
+            "description": "{{seed_product_id}} defaults to 1 (the first product created by scripts/seed_data.py).",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customer_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Product (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/v1/products",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sku\": \"POSTMAN-001\",\n  \"name\": \"Postman Demo Product\",\n  \"description\": \"Created from the Postman collection.\",\n  \"category\": \"Demo\",\n  \"price\": 19.99\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', function () { pm.response.to.have.status(201); });",
+                  "pm.environment.set('product_id', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Product as Customer (negative test - RBAC)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/v1/products",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sku\": \"POSTMAN-002\",\n  \"name\": \"Should Be Rejected\",\n  \"category\": \"Demo\",\n  \"price\": 1.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customer_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Forbidden with 403', function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Product (Admin)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/v1/products/{{product_id}}",
+            "description": "Updates the product created above (not a seeded product).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"price\": 24.99\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Price updated', function () { pm.expect(pm.response.json().price).to.eql(24.99); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete Product (Admin)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/v1/products/{{product_id}}",
+            "description": "Soft-deletes (is_active=false) the demo product created above.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 204', function () { pm.response.to.have.status(204); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3. Order Processing Service",
+      "item": [
+        {
+          "name": "Create Order (Customer)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/v1/orders",
+            "description": "References product_id 1 - the first product created by scripts/seed_data.py. Adjust the body if your catalogue differs. Triggers order.created on RabbitMQ, which the Inventory service consumes to reserve stock.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"product_id\": 1,\n      \"quantity\": 2\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customer_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', function () { pm.response.to.have.status(201); });",
+                  "pm.test('Order starts pending', function () { pm.expect(pm.response.json().status).to.eql('pending'); });",
+                  "pm.environment.set('order_id', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Order as Warehouse Staff (negative test - RBAC)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/v1/orders",
+            "description": "Only the 'customer' role may place orders.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"product_id\": 1,\n      \"quantity\": 1\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{staff_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Forbidden with 403', function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Order By Id (wait a couple seconds after creating, for the event round-trip)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/v1/orders/{{order_id}}",
+            "description": "If run immediately after 'Create Order', status may still show 'pending' - the order.created -> inventory reservation -> order.status_changed round trip happens asynchronously over RabbitMQ, usually within ~1-2 seconds.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customer_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Order is confirmed or still pending', function () {",
+                  "    pm.expect(['pending', 'confirmed', 'cancelled']).to.include(pm.response.json().status);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List My Orders (Customer)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/v1/orders?page=1&page_size=20",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customer_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List All Orders (Staff)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/v1/orders?page=1&page_size=20",
+            "description": "Staff/admin see every customer's orders; a plain customer would only see their own (compare with 'List My Orders').",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{staff_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Order Status to Shipped (Staff)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/v1/orders/{{order_id}}/status",
+            "description": "Only valid once the order has reached 'confirmed' (via the async inventory reservation). Returns 409 if the order is still 'pending' - re-run 'Get Order By Id' first to check.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"shipped\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{staff_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Either succeeds (200) or the order is not yet confirmed (409)', function () {",
+                  "    pm.expect([200, 409]).to.include(pm.response.code);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "4. Inventory Management Service",
+      "item": [
+        {
+          "name": "List Inventory (Staff)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/v1/inventory?page=1&page_size=20",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{staff_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Inventory as Customer (negative test - RBAC)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/v1/inventory",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customer_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Forbidden with 403', function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Inventory By Product Id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/v1/inventory/{{seed_product_id}}",
+            "description": "Any authenticated role can check stock for a single product.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customer_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Inventory Record for a New Product (Staff)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/v1/inventory",
+            "description": "Uses a product_id (9999) unlikely to already have an inventory record. If you re-run this, expect 409.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"product_id\": 9999,\n  \"sku\": \"POSTMAN-INV-001\",\n  \"quantity_available\": 50,\n  \"reorder_level\": 5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{staff_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201 or 409 (already exists)', function () { pm.expect([201, 409]).to.include(pm.response.code); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Restock Inventory (Staff)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/v1/inventory/9999",
+            "description": "Positive quantity_delta restocks; negative manually deducts stock.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quantity_delta\": 25\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{staff_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "5. Notification Service",
+      "item": [
+        {
+          "name": "List My Notifications (Customer)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/v1/notifications?page=1&page_size=20",
+            "description": "Populated by order.created / order.status_changed / user.registered events consumed from RabbitMQ. Run the Order Processing requests first to generate some.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customer_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                  "const body = pm.response.json();",
+                  "if (body.items && body.items.length > 0) { pm.environment.set('notification_id', body.items[0].id); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Notifications Without Token (negative test)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/v1/notifications"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Rejected with 401', function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Notification By Id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/v1/notifications/{{notification_id}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customer_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Mark Notification As Read (Customer)",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": "{{base_url}}/v1/notifications/{{notification_id}}/read",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customer_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('is_read is true', function () { pm.expect(pm.response.json().is_read).to.eql(true); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
