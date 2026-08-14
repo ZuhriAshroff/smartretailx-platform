@@ -1,0 +1,226 @@
+x-service-env: &common-env
+  JWT_SECRET_KEY: ${JWT_SECRET_KEY:-smartretailx-super-secret-dev-key-change-me}
+  JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+  ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-60}
+  RABBITMQ_URL: ${RABBITMQ_URL:-amqp://smartretailx:smartretailx@rabbitmq:5672/%2F}
+  # "rabbitmq" (default, used here) or "sqs" (AWS deployment only - see infrastructure/).
+  MESSAGE_BROKER: ${MESSAGE_BROKER:-rabbitmq}
+
+x-healthcheck-defaults: &pg-healthcheck
+  interval: 5s
+  timeout: 5s
+  retries: 10
+
+networks:
+  smartretailx_net:
+    name: smartretailx_net
+    driver: bridge
+
+volumes:
+  user_db_data:
+  product_db_data:
+  order_db_data:
+  inventory_db_data:
+  notification_db_data:
+  rabbitmq_data:
+
+services:
+  # ---------------------------------------------------------------------
+  # Infrastructure
+  # ---------------------------------------------------------------------
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: smartretailx_rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-smartretailx}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-smartretailx}
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+    networks: [smartretailx_net]
+
+  user_db:
+    image: postgres:16-alpine
+    container_name: smartretailx_user_db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-smartretailx}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-smartretailx}
+      POSTGRES_DB: user_service
+    volumes:
+      - user_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-smartretailx}"]
+      <<: *pg-healthcheck
+    networks: [smartretailx_net]
+
+  product_db:
+    image: postgres:16-alpine
+    container_name: smartretailx_product_db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-smartretailx}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-smartretailx}
+      POSTGRES_DB: product_service
+    volumes:
+      - product_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-smartretailx}"]
+      <<: *pg-healthcheck
+    networks: [smartretailx_net]
+
+  order_db:
+    image: postgres:16-alpine
+    container_name: smartretailx_order_db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-smartretailx}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-smartretailx}
+      POSTGRES_DB: order_service
+    volumes:
+      - order_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-smartretailx}"]
+      <<: *pg-healthcheck
+    networks: [smartretailx_net]
+
+  inventory_db:
+    image: postgres:16-alpine
+    container_name: smartretailx_inventory_db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-smartretailx}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-smartretailx}
+      POSTGRES_DB: inventory_service
+    volumes:
+      - inventory_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-smartretailx}"]
+      <<: *pg-healthcheck
+    networks: [smartretailx_net]
+
+  notification_db:
+    image: postgres:16-alpine
+    container_name: smartretailx_notification_db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-smartretailx}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-smartretailx}
+      POSTGRES_DB: notification_service
+    volumes:
+      - notification_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-smartretailx}"]
+      <<: *pg-healthcheck
+    networks: [smartretailx_net]
+
+  # ---------------------------------------------------------------------
+  # Microservices
+  # ---------------------------------------------------------------------
+  user_service:
+    build:
+      context: .
+      dockerfile: services/user_service/Dockerfile
+    container_name: smartretailx_user_service
+    environment:
+      <<: *common-env
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-smartretailx}:${POSTGRES_PASSWORD:-smartretailx}@user_db:5432/user_service
+      SERVICE_NAME: user-management-service
+    ports:
+      - "8001:8001"
+    depends_on:
+      - user_db
+      - rabbitmq
+    networks: [smartretailx_net]
+    restart: unless-stopped
+
+  product_service:
+    build:
+      context: .
+      dockerfile: services/product_service/Dockerfile
+    container_name: smartretailx_product_service
+    environment:
+      <<: *common-env
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-smartretailx}:${POSTGRES_PASSWORD:-smartretailx}@product_db:5432/product_service
+      SERVICE_NAME: product-catalogue-service
+    ports:
+      - "8002:8002"
+    depends_on:
+      - product_db
+      - rabbitmq
+    networks: [smartretailx_net]
+    restart: unless-stopped
+
+  order_service:
+    build:
+      context: .
+      dockerfile: services/order_service/Dockerfile
+    container_name: smartretailx_order_service
+    environment:
+      <<: *common-env
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-smartretailx}:${POSTGRES_PASSWORD:-smartretailx}@order_db:5432/order_service
+      SERVICE_NAME: order-processing-service
+      PRODUCT_SERVICE_URL: http://product_service:8002
+    ports:
+      - "8003:8003"
+    depends_on:
+      - order_db
+      - rabbitmq
+      - product_service
+    networks: [smartretailx_net]
+    restart: unless-stopped
+
+  inventory_service:
+    build:
+      context: .
+      dockerfile: services/inventory_service/Dockerfile
+    container_name: smartretailx_inventory_service
+    environment:
+      <<: *common-env
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-smartretailx}:${POSTGRES_PASSWORD:-smartretailx}@inventory_db:5432/inventory_service
+      SERVICE_NAME: inventory-management-service
+    ports:
+      - "8004:8004"
+    depends_on:
+      - inventory_db
+      - rabbitmq
+    networks: [smartretailx_net]
+    restart: unless-stopped
+
+  notification_service:
+    build:
+      context: .
+      dockerfile: services/notification_service/Dockerfile
+    container_name: smartretailx_notification_service
+    environment:
+      <<: *common-env
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-smartretailx}:${POSTGRES_PASSWORD:-smartretailx}@notification_db:5432/notification_service
+      SERVICE_NAME: notification-service
+    ports:
+      - "8005:8005"
+    depends_on:
+      - notification_db
+      - rabbitmq
+    networks: [smartretailx_net]
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------
+  # API Gateway
+  # ---------------------------------------------------------------------
+  gateway:
+    image: nginx:1.27-alpine
+    container_name: smartretailx_gateway
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "8080:80"
+    depends_on:
+      - user_service
+      - product_service
+      - order_service
+      - inventory_service
+      - notification_service
+    networks: [smartretailx_net]
+    restart: unless-stopped
