@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+
+# Virtual environments
+.venv/
+.venv_*/
+venv/
+
+# Test artifacts
+services/*/tests/*.db
+
+# Environment
+.env
+
+# OS
+.DS_Store
+
+# Claude Code local settings (never commit/deploy)
+.claude/
+
+# Terraform (the .terraform.lock.hcl file IS committed — it pins provider versions)
+infrastructure/terraform/.terraform/
+infrastructure/terraform/*.tfstate
+infrastructure/terraform/*.tfstate.*
+infrastructure/terraform/crash.log
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
