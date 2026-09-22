@@ -55,27 +55,28 @@ terraform apply -auto-approve
 
 ALB_DNS="$(terraform output -raw alb_dns_name)"
 BUCKET_NAME="$(terraform output -raw frontend_bucket_name)"
-DISTRIBUTION_ID="$(terraform output -raw cloudfront_distribution_id)"
-CLOUDFRONT_DOMAIN="$(terraform output -raw cloudfront_domain_name)"
+WEBSITE_ENDPOINT="$(terraform output -raw frontend_website_endpoint)"
 
 echo "==> [6/6] Building and publishing the React frontend"
 cd "$REPO_ROOT/frontend"
 npm ci
-# Point the frontend at the CloudFront domain, NOT the raw ALB DNS. CloudFront
-# proxies /v1/* to the ALB (see modules/s3-cloudfront) — this matters because
-# the frontend is served over HTTPS, and a browser blocks an HTTPS page from
-# calling a plain-HTTP API as "mixed content". Same CloudFront origin for both
-# the app and its API calls sidesteps that (and CORS, since it's same-origin).
-VITE_API_BASE_URL="https://${CLOUDFRONT_DOMAIN}" npm run build
+# TEMPORARY: CloudFront distribution creation is blocked on this AWS account
+# pending account verification (see infrastructure/README.md), so the
+# frontend is served directly from an S3 static website instead. That's a
+# different origin from the ALB, so the API needs CORS headers now (see
+# CORS_ALLOWED_ORIGINS in modules/ecs + libs/common/cors.py). Both the S3
+# website and the ALB are plain HTTP, so there's no mixed-content issue.
+VITE_API_BASE_URL="http://${ALB_DNS}" npm run build
 aws s3 sync dist/ "s3://${BUCKET_NAME}/" --delete
-aws cloudfront create-invalidation --distribution-id "$DISTRIBUTION_ID" --paths "/*" >/dev/null
 
 echo ""
 echo "================================================================"
 echo " Deploy complete."
-echo "   API (direct ALB, HTTP, for testing only): http://${ALB_DNS}"
-echo "   Frontend + API (HTTPS):                   https://${CLOUDFRONT_DOMAIN}"
+echo "   API (direct ALB, HTTP):        http://${ALB_DNS}"
+echo "   Frontend (S3 website, HTTP):   ${WEBSITE_ENDPOINT}"
 echo ""
-echo " CloudFront can take a few minutes to finish propagating."
+echo " NOTE: plain HTTP only (S3 static website hosting has no HTTPS)."
+echo " This is a fallback until the pending CloudFront AWS Support case"
+echo " clears — see infrastructure/README.md to switch back."
 echo " Run scripts/stop.sh before you leave it idle to pause ECS billing."
 echo "================================================================"

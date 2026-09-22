@@ -8,6 +8,7 @@ from app.config import SERVICE_NAME
 from app.consumers import start_inventory_consumers
 from app.database import Base, engine
 from app.routers import inventory
+from libs.common.cors import add_cors
 from libs.common.db import wait_for_db
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [%(name)s] %(message)s")
@@ -20,6 +21,7 @@ app = FastAPI(
     docs_url="/docs",
     openapi_url="/openapi.json",
 )
+add_cors(app)
 
 app.include_router(inventory.router)
 

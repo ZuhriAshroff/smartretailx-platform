@@ -36,6 +36,11 @@ variable "alb_dns_name" {
   type = string
 }
 
+variable "frontend_origin" {
+  type        = string
+  description = "Frontend origin (e.g. http://<bucket>.s3-website-<region>.amazonaws.com) allowed via CORS, since the S3-hosted frontend and the ALB are different origins with no shared gateway on AWS."
+}
+
 variable "jwt_secret_arn" {
   type = string
 }

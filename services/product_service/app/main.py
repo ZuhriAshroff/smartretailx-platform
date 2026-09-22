@@ -6,6 +6,7 @@ from prometheus_fastapi_instrumentator import Instrumentator
 from app.config import SERVICE_NAME
 from app.database import Base, engine
 from app.routers import products
+from libs.common.cors import add_cors
 from libs.common.db import wait_for_db
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [%(name)s] %(message)s")
@@ -18,6 +19,7 @@ app = FastAPI(
     docs_url="/docs",
     openapi_url="/openapi.json",
 )
+add_cors(app)
 
 app.include_router(products.router)
 

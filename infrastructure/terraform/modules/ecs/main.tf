@@ -47,6 +47,7 @@ locals {
     { name = "AWS_REGION", value = var.region },
     { name = "OPS_TEAM_EMAIL", value = var.ops_team_email },
     { name = "WAREHOUSE_TEAM_EMAIL", value = var.warehouse_team_email },
+    { name = "CORS_ALLOWED_ORIGINS", value = var.frontend_origin },
   ]
 
   # order_service is the only service that calls another service directly

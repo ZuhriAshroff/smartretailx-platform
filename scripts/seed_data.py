@@ -65,6 +65,16 @@ DEFAULT_REORDER_LEVEL = 15
 
 
 def wait_for_services(retries: int = 30, delay_seconds: float = 2.0) -> None:
+    if os.getenv("SKIP_HEALTH_WAIT"):
+        # On AWS, every SERVICE_URL is the same ALB DNS, but the ALB only
+        # routes the real /v1/<service>* prefixes - there's no public route
+        # for /v1/health (that's only used directly by the ECS target group
+        # health checks), so this check can never pass there even when the
+        # services are genuinely healthy. Skip it when the caller has
+        # already confirmed health another way (e.g. `aws ecs wait
+        # services-stable`).
+        print("SKIP_HEALTH_WAIT set - skipping health checks.")
+        return
     print("Waiting for all services to become healthy...")
     for name, url in SERVICES_TO_WAIT_FOR.items():
         for attempt in range(1, retries + 1):

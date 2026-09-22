@@ -3,13 +3,9 @@ output "alb_dns_name" {
   value       = module.alb.alb_dns_name
 }
 
-output "cloudfront_domain_name" {
-  description = "Public URL for the React frontend"
-  value       = module.s3_cloudfront.cloudfront_domain_name
-}
-
-output "cloudfront_distribution_id" {
-  value = module.s3_cloudfront.cloudfront_distribution_id
+output "frontend_website_endpoint" {
+  description = "Public URL for the React frontend (S3 static website, plain HTTP — temporary CloudFront fallback)"
+  value       = "http://${module.s3_cloudfront.website_endpoint}"
 }
 
 output "frontend_bucket_name" {

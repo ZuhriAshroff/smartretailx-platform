@@ -285,6 +285,7 @@ module "ecs" {
   container_images   = local.container_images
   target_group_arns  = module.alb.target_group_arns
   alb_dns_name       = module.alb.alb_dns_name
+  frontend_origin    = "http://${module.s3_cloudfront.website_endpoint}"
 
   jwt_secret_arn = aws_ssm_parameter.jwt_secret_key.arn
   database_url_arns = {
@@ -307,13 +308,13 @@ module "ecs" {
 }
 
 ############################################
-# Frontend hosting — S3 + CloudFront
+# Frontend hosting — S3 static website (temporary CloudFront fallback,
+# see modules/s3-cloudfront/main.tf header)
 ############################################
 
 module "s3_cloudfront" {
   source = "./modules/s3-cloudfront"
 
-  prefix       = var.prefix
-  account_id   = var.aws_account_id
-  alb_dns_name = module.alb.alb_dns_name
+  prefix     = var.prefix
+  account_id = var.aws_account_id
 }
